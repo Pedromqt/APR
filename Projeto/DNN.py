@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch.nn.functional as F
 
 class DNN(nn.Module):
     def __init__(self, input_size, hidden_sizes, num_classes):
@@ -18,10 +19,12 @@ class DNN(nn.Module):
 
             self.layers.append(nn.Linear(hidden_sizes[-1], num_classes))
     
-    def forward(self, x):
+    def forward(self, x, use_nll=False):
         out = x 
         for i in range(len(self.layers)):
             out = self.layers[i](out)
             if i < len(self.activations):
                 out = self.activations[i](out)
+        if use_nll:
+            out = F.log_softmax(out, dim=1)
         return out

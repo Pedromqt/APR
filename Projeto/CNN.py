@@ -15,7 +15,7 @@ class CNN(nn.Module):
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, num_classes)
 
-    def forward(self, x):
+    def forward(self, x, use_nll=False):
         # pooling e ReLU na primeira camada convolucional
         x = F.relu(self.conv1(x))
         x = F.max_pool2d(x, 2)
@@ -35,5 +35,8 @@ class CNN(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
+        
+        if use_nll:
+            x = F.log_softmax(x, dim=1)
         
         return x

@@ -1,7 +1,7 @@
 from sklearn.metrics import confusion_matrix, f1_score
 import torch
 
-def fit(train_data, model, criterion, optimizer, n_epochs, to_device=True):
+def fit(train_data, model, criterion, optimizer, n_epochs, to_device=True, flatten=False , use_nll=False):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if to_device:
         model = model.to(device)
@@ -12,10 +12,12 @@ def fit(train_data, model, criterion, optimizer, n_epochs, to_device=True):
     for epoch in range(n_epochs):
         epoch_loss = 0
         for X_batch, y_batch in train_data:
-            X_batch = X_batch.view(X_batch.size(0), -1).to(device)  # flatten the input
+            if flatten: # DNN
+                X_batch = X_batch.view(X_batch.size(0), -1)  # flatten the input
+            X_batch = X_batch.to(device)
             y_batch = y_batch.view(-1).long().to(device)
 
-            output = model(X_batch)             # forward pass
+            output = model(X_batch, use_nll=use_nll)             # forward pass
             loss = criterion(output, y_batch)   # compute loss
 
             optimizer.zero_grad()               # clear gradients
@@ -30,7 +32,7 @@ def fit(train_data, model, criterion, optimizer, n_epochs, to_device=True):
     
     return model.to("cpu")
 
-def evaluate_nn(nn, loader):
+def evaluate_nn(nn, loader, flatten=False,file = None,use_nll=False):
     nn.eval()
     all_preds = []
     all_labels = []
@@ -39,10 +41,12 @@ def evaluate_nn(nn, loader):
     
     with torch.no_grad():
         for X_batch, y_batch in loader:
-            X_batch = X_batch.view(X_batch.size(0), -1).to(device)
+            if flatten: # DNN
+                X_batch = X_batch.view(X_batch.size(0), -1)
+            X_batch = X_batch.to(device)
             y_batch = y_batch.to(device)
                 
-            output = nn(X_batch)
+            output = nn(X_batch,use_nll=use_nll)
             _, predicted = torch.max(output, 1)
             all_preds.append(predicted.cpu())
             all_labels.append(y_batch.cpu())
@@ -52,7 +56,8 @@ def evaluate_nn(nn, loader):
 
     conf_mat = confusion_matrix(all_labels, all_preds)
     f1 = f1_score(all_labels, all_preds, average='weighted')
-
-    print('Confusion Matrix:\n', conf_mat)
-    print('F1 Score: ', f1)
     
+    if file is not None:
+        file.write('Confusion Matrix:\n')
+        file.write(str(conf_mat) + '\n')
+        file.write('F1 Score: ' + str(f1) + '\n')
