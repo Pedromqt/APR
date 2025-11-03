@@ -1,7 +1,7 @@
-from sklearn.metrics import confusion_matrix, f1_score
+from sklearn.metrics import confusion_matrix, f1_score,precision_score
 import torch
 
-def fit(train_data, model, criterion, optimizer, n_epochs, to_device=True, flatten=False , use_nll=False):
+def fit(train_data, model, criterion, optimizer, n_epochs, to_device=True, flatten=False , use_nll=False,patience=10, min_delta=1e-4):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if to_device:
         model = model.to(device)
@@ -9,6 +9,10 @@ def fit(train_data, model, criterion, optimizer, n_epochs, to_device=True, flatt
     acc_values  = []
     loss_values = []
     model.train()
+    
+    best_loss = float('inf')
+    epochs_no_improve = 0
+    best_model_weights = model.state_dict()
     
     for epoch in range(n_epochs):
         epoch_loss = 0
@@ -36,7 +40,20 @@ def fit(train_data, model, criterion, optimizer, n_epochs, to_device=True, flatt
         avg_acc  = acc_sum  / len(train_data)
         acc_values.append(avg_acc*100)
         loss_values.append(avg_loss)
-    
+        
+        # Early Stopping logic
+        if best_loss - avg_loss > min_delta:
+            best_loss = avg_loss
+            best_model_weights = model.state_dict()
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+
+        if epochs_no_improve >= patience:
+            print(f"Early stopping at epoch {epoch+1}")
+            break
+        
+    model.load_state_dict(best_model_weights)
     return model.to("cpu"), loss_values, acc_values
 
 def evaluate_nn(nn, loader, flatten=False,file = None,use_nll=False):
@@ -60,7 +77,7 @@ def evaluate_nn(nn, loader, flatten=False,file = None,use_nll=False):
             batch_acc = (predicted == y_batch).sum().item() 
             total_acc += batch_acc
             total_samples += y_batch.size(0)
-            all_preds.append(predicted.cpu()    )
+            all_preds.append(predicted.cpu())
             all_labels.append(y_batch.cpu())
 
     acc = total_acc / total_samples
@@ -71,8 +88,19 @@ def evaluate_nn(nn, loader, flatten=False,file = None,use_nll=False):
     conf_mat = confusion_matrix(all_labels, all_preds)
     f1 = f1_score(all_labels, all_preds, average='weighted')
     
+    per_class_acc = conf_mat.diagonal() / conf_mat.sum(axis=1)
+    per_class_precision = precision_score(all_labels, all_preds, average=None, zero_division=0)
+    per_class_f1 = f1_score(all_labels, all_preds, average=None, zero_division=0)
+    
     if file is not None:
         file.write('Confusion Matrix:\n')
         file.write(str(conf_mat) + '\n')
-        file.write('F1 Score: ' + str(f1) + '\n')
-    return acc_values, conf_mat, f1
+        file.write('F1 Score (weighted): ' + str(f1) + '\n')
+        file.write('Accuracy per class:\n')
+        file.write(str(per_class_acc) + '\n')
+        file.write('Precision per class:\n')
+        file.write(str(per_class_precision) + '\n')
+        file.write('F1 Score per class:\n')
+        file.write(str(per_class_f1) + '\n')
+
+    return acc_values, conf_mat, f1, per_class_acc, per_class_precision, per_class_f1

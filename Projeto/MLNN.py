@@ -1,9 +1,9 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-class DNN(nn.Module):
+class MLNN(nn.Module):
     def __init__(self, input_size, hidden_sizes, num_classes, dropout_rate=0.2):
-        super(DNN, self).__init__()
+        super(MLNN, self).__init__()
         self.layers = nn.ModuleList()
         self.dropout = nn.Dropout(dropout_rate)
         self.activations = nn.ModuleList()
